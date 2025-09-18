@@ -63,64 +63,19 @@ const plans = [
     featured: true,
   },
   {
-    id: "team",
-    name: "خطة الفريق",
-    price: "25$",
-    priceDescription: "للشركات الصغيرة",
-    description: "موجهة للفرق المتعاونة.",
-    features: [
-      "عمليات غير محدودة.",
-      "حجم ملف 200 ميجا.",
-      "500 صفحة PDF كحد أقصى.",
-      "تكامل مع Google Drive.",
-      "حتى 5 مستخدمين.",
-    ],
-    cta: "اختر خطة الفريق",
-  },
-  {
     id: "business",
     name: "الخطة الاحترافية",
     price: "49$",
     priceDescription: "للشركات المتوسطة",
     description: "حلول متكاملة للأعمال.",
     features: [
-      "كل شيء في خطة الفريق.",
+      "عمليات غير محدودة.",
       "حجم ملف 500 ميجا.",
       "1000 صفحة PDF كحد أقصى.",
       "واجهة برمجة تطبيقات (API).",
       "حتى 20 مستخدم.",
     ],
     cta: "اختر الخطة الاحترافية",
-  },
-  {
-    id: "enterprise",
-    name: "الخطة المؤسسية",
-    price: "99$",
-    priceDescription: "للشركات الكبيرة",
-    description: "قوة وأمان للمؤسسات الكبرى.",
-    features: [
-      "كل شيء في الخطة الاحترافية.",
-      "حدود مخصصة لحجم الملفات والصفحات.",
-      "دعم فني مخصص.",
-      "استضافة خاصة (Private Cloud).",
-      "مستخدمون غير محدودين.",
-    ],
-    cta: "اختر خطة المؤسسة",
-  },
-  {
-    id: "custom",
-    name: "الخطة المخصصة",
-    price: "حسب الطلب",
-    priceDescription: "حلول خاصة جداً",
-    description: "عندما تحتاج إلى شيء فريد.",
-    features: [
-      "حلول مصممة خصيصًا لاحتياجاتك.",
-      "تكاملات مخصصة مع أنظمتك.",
-      "حماية بيانات على أعلى مستوى.",
-      "تسعير مرن.",
-    ],
-    cta: "اتصل بالمبيعات",
-    isContact: true,
   },
 ];
 
@@ -174,7 +129,7 @@ export default function PricingPage() {
           </p>
         </div>
 
-        <div className="mt-16 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-16 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           {plans.map((plan) => {
             const isCurrentPlan = plan.id === activePlanId;
             return (
