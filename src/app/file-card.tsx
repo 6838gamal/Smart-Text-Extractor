@@ -16,6 +16,7 @@ import {
   BookText,
   Loader2,
   Search,
+  Crop,
 } from "lucide-react";
 import { type ProcessedFile } from "@/app/page";
 import { Button } from "@/components/ui/button";
@@ -55,10 +56,12 @@ import {
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
+import { ImageCropper } from "./image-cropper";
 
 type FileCardProps = {
   fileData: ProcessedFile;
   onAction: () => void;
+  onProcess: (fileId: string, dataUri?: string) => void;
   checkUsage: () => boolean;
   usageCount: number;
   usageLimit: number;
@@ -80,8 +83,8 @@ const STATUS_INFO = {
   error: { icon: <AlertCircle className="w-4 h-4 text-destructive" />, text: "خطأ" },
 };
 
-export function FileCard({ fileData, onAction, checkUsage, usageCount, usageLimit }: FileCardProps) {
-  const { file, status, text, error, type, previewUrl } = fileData;
+export function FileCard({ fileData, onAction, onProcess, checkUsage, usageCount, usageLimit }: FileCardProps) {
+  const { file, status, text, error, type, previewUrl, id } = fileData;
   const [isSummaryOpen, setIsSummaryOpen] = React.useState(false);
   const [summary, setSummary] = React.useState("");
   const [isSummarizing, setIsSummarizing] = React.useState(false);
@@ -92,13 +95,14 @@ export function FileCard({ fileData, onAction, checkUsage, usageCount, usageLimi
   const [isKeywordsOpen, setIsKeywordsOpen] = React.useState(false);
   const [keywords, setKeywords] = React.useState<string[]>([]);
   const [isGeneratingKeywords, setIsGeneratingKeywords] = React.useState(false);
+  const [isCropOpen, setIsCropOpen] = React.useState(false);
   
   const { plan } = useAuth();
   const { toast } = useToast();
   const statusInfo = STATUS_INFO[status];
   const limitReached = usageCount >= usageLimit;
   
-  const canExportPdf = plan === 'pro' || plan === 'team' || plan === 'business' || plan === 'enterprise';
+  const canExportPdf = plan === 'pro' || plan === 'business' || plan === 'enterprise';
   const canExportDocx = canExportPdf;
 
 
@@ -147,6 +151,11 @@ export function FileCard({ fileData, onAction, checkUsage, usageCount, usageLimi
       setIsKeywordsOpen(true);
     }
     setIsGeneratingKeywords(false);
+  };
+
+  const handleCropComplete = (croppedDataUrl: string) => {
+    setIsCropOpen(false);
+    onProcess(id, croppedDataUrl);
   };
   
   const handleExport = (format: "txt" | "md") => {
@@ -209,6 +218,20 @@ export function FileCard({ fileData, onAction, checkUsage, usageCount, usageLimi
                ? 'تم الوصول إلى حد الاستخدام' 
                : `${usageLimit === Infinity ? 'استخدام غير محدود' : `المحاولات: ${usageCount} / ${usageLimit}`}`}
            </div>
+          
+          {type === 'image' && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsCropOpen(true)}
+              disabled={status === 'processing' || (limitReached && usageLimit !== 0)}
+              title={limitReached ? 'تم الوصول إلى حد الاستخدام' : 'اقتصاص الصورة'}
+            >
+              <Crop className="ml-2 h-4 w-4" />
+              اقتصاص
+            </Button>
+          )}
+
           <Button
             variant="outline"
             size="sm"
@@ -270,6 +293,21 @@ export function FileCard({ fileData, onAction, checkUsage, usageCount, usageLimi
           </DropdownMenu>
         </CardFooter>
       </Card>
+
+      {/* Crop Dialog */}
+      <Dialog open={isCropOpen} onOpenChange={setIsCropOpen}>
+        <DialogContent className="max-w-4xl" dir="rtl">
+          <DialogHeader>
+            <DialogTitle>اقتصاص الصورة</DialogTitle>
+            <DialogDescription>حدد الجزء من الصورة الذي تريد استخراج النص منه.</DialogDescription>
+          </DialogHeader>
+          <ImageCropper
+            src={previewUrl}
+            onCropComplete={handleCropComplete}
+            onCancel={() => setIsCropOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
 
       {/* Summary Dialog */}
       <Dialog open={isSummaryOpen} onOpenChange={setIsSummaryOpen}>

@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import AppHeader from "@/app/components/app-header";
 import FileUploader from "@/app/components/file-uploader";
 import { FileCard } from "@/app/file-card";
@@ -33,14 +33,12 @@ const getFileType = (file: File): { displayType: BasicFileType, processingType: 
     const type = file.type;
     const extension = file.name.split('.').pop()?.toLowerCase();
 
-    // Check by MIME type first
     if (type.startsWith('image/')) return { displayType: 'image', processingType: 'image' };
     if (type === 'application/pdf') return { displayType: 'pdf', processingType: 'image' };
     if (type.startsWith('audio/')) return { displayType: 'audio', processingType: 'audio' };
     if (type.startsWith('video/')) return { displayType: 'video', processingType: 'video' };
     if (type.startsWith('text/')) return { displayType: 'text', processingType: 'text' };
     
-    // If MIME type is empty or generic, fallback to extension
     if (extension) {
         if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'].includes(extension)) return { displayType: 'image', processingType: 'image' };
         if (extension === 'pdf') return { displayType: 'pdf', processingType: 'image' };
@@ -49,7 +47,6 @@ const getFileType = (file: File): { displayType: BasicFileType, processingType: 
         if (['txt', 'md', 'json', 'csv', 'xml', 'js', 'ts', 'py', 'java', 'c', 'cpp', 'cs', 'go', 'rb', 'php', 'swift', 'html', 'css'].includes(extension)) return { displayType: 'text', processingType: 'text' };
     }
 
-    // If still no match, classify as unsupported
     return { displayType: 'unsupported', processingType: 'unsupported' };
 };
 
@@ -126,8 +123,6 @@ export default function Home() {
     
     setUsageCount(newCount);
     const userDocRef = doc(db, "users", user.uid);
-    // Note: In a production app, you might want to handle usage reset monthly.
-    // This could be done with a Cloud Function that runs on a schedule.
     await updateDoc(userDocRef, {
       monthlyUsage: increment(1)
     });
@@ -141,17 +136,77 @@ export default function Home() {
     return false;
   };
 
+  const processFile = useCallback(async (fileToProcessId: string, dataUri?: string) => {
+      const fileToProcess = files.find(f => f.id === fileToProcessId);
+
+      if (!fileToProcess || authLoading || !user) {
+        if (!user) {
+            setFiles((prev) =>
+                prev.map((f) =>
+                f.id === fileToProcessId ? { ...f, status: "error", error: "الرجاء تسجيل الدخول أولاً للمتابعة." } : f
+                )
+            );
+        }
+        return;
+      }
+      
+      if (checkUsageLimit()) return;
+
+      const { processingType } = getFileType(fileToProcess.file);
+
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.id === fileToProcess.id ? { ...f, status: "processing", text: undefined, error: undefined } : f
+        )
+      );
+
+      try {
+        await incrementUsage();
+        
+        let extractedText: string | undefined;
+
+        if (processingType === 'text') {
+            extractedText = await readTextFromFile(fileToProcess.file);
+        } else {
+            const fileDataUri = dataUri || await toDataURL(fileToProcess.file);
+            const result = await getExtractedText({ fileDataUri });
+
+            if (result.error) {
+              throw new Error(result.error);
+            }
+            extractedText = result.text;
+        }
+
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileToProcess.id
+              ? { ...f, status: "success", text: extractedText }
+              : f
+          )
+        );
+
+      } catch (e: any) {
+         const userDocRef = doc(db, "users", user.uid);
+         await updateDoc(userDocRef, { monthlyUsage: increment(-1) });
+         setUsageCount(prev => prev - 1);
+
+         setFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileToProcess.id
+              ? { ...f, status: "error", error: e.message || 'فشل استخراج النص.' }
+              : f
+          )
+        );
+      }
+    }, [files, authLoading, user, plan, usageCount]);
 
   const handleFileChange = async (newFiles: File[]) => {
     const processedFilesPromises = newFiles.map(async (file): Promise<ProcessedFile> => {
       const { displayType, processingType } = getFileType(file);
       const id = crypto.randomUUID();
-      const baseProcessedFile = {
-        id,
-        file,
-        previewUrl: URL.createObjectURL(file),
-        type: displayType,
-      };
+      let previewUrl = URL.createObjectURL(file);
+      
+      const baseProcessedFile = { id, file, previewUrl, type: displayType };
 
       const fileSizeMB = file.size / 1024 / 1024;
       if (currentPlanLimits.fileSizeMB !== Infinity && fileSizeMB > currentPlanLimits.fileSizeMB) {
@@ -191,14 +246,18 @@ export default function Home() {
         };
       }
 
-      return {
-        ...baseProcessedFile,
-        status: "queued",
-      };
+      return { ...baseProcessedFile, status: "queued" };
     });
     
     const processedFiles = await Promise.all(processedFilesPromises);
     setFiles((prevFiles) => [...processedFiles, ...prevFiles]);
+
+    // Automatically process queued files
+    processedFiles.forEach(file => {
+      if (file.status === 'queued') {
+        processFile(file.id);
+      }
+    });
   };
   
   useEffect(() => {
@@ -206,75 +265,6 @@ export default function Home() {
       files.forEach(file => URL.revokeObjectURL(file.previewUrl));
     };
   }, [files]);
-
-  useEffect(() => {
-    const processQueue = async () => {
-      const fileToProcess = files.find((f) => f.status === "queued");
-      if (!fileToProcess || authLoading) return;
-
-      if (!user) {
-         setFiles((prev) =>
-          prev.map((f) =>
-            f.id === fileToProcess.id ? { ...f, status: "error", error: "الرجاء تسجيل الدخول أولاً للمتابعة." } : f
-          )
-        );
-        return;
-      }
-      
-      if (checkUsageLimit()) return;
-
-      const { processingType } = getFileType(fileToProcess.file);
-
-      setFiles((prev) =>
-        prev.map((f) =>
-          f.id === fileToProcess.id ? { ...f, status: "processing" } : f
-        )
-      );
-
-      try {
-        await incrementUsage();
-        
-        let extractedText: string | undefined;
-
-        if (processingType === 'text') {
-            extractedText = await readTextFromFile(fileToProcess.file);
-        } else {
-            const fileDataUri = await toDataURL(fileToProcess.file);
-            const result = await getExtractedText({ fileDataUri });
-
-            if (result.error) {
-              throw new Error(result.error);
-            }
-            extractedText = result.text;
-        }
-
-        setFiles((prev) =>
-          prev.map((f) =>
-            f.id === fileToProcess.id
-              ? { ...f, status: "success", text: extractedText }
-              : f
-          )
-        );
-
-      } catch (e: any) {
-         // Decrement usage if API call failed
-         const userDocRef = doc(db, "users", user.uid);
-         await updateDoc(userDocRef, { monthlyUsage: increment(-1) });
-         setUsageCount(prev => prev - 1);
-
-         setFiles((prev) =>
-          prev.map((f) =>
-            f.id === fileToProcess.id
-              ? { ...f, status: "error", error: e.message || 'فشل استخراج النص.' }
-              : f
-          )
-        );
-      }
-    };
-
-    const intervalId = setInterval(processQueue, 1000);
-    return () => clearInterval(intervalId);
-  }, [files, plan, usageCount, user, authLoading]);
   
   if (authLoading) {
      return (
@@ -321,6 +311,7 @@ export default function Home() {
                   key={file.id} 
                   fileData={file}
                   onAction={() => { /* Usage is now incremented before processing */ }}
+                  onProcess={processFile}
                   checkUsage={checkUsageLimit}
                   usageCount={usageCount}
                   usageLimit={currentPlanLimits.usage}
