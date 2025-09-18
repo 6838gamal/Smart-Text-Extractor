@@ -1,10 +1,9 @@
 'use client';
 
 import { Button } from "@/components/ui/button";
-import { Github, Facebook } from "lucide-react";
+import { Github } from "lucide-react";
 import { 
   GoogleAuthProvider,
-  FacebookAuthProvider,
   GithubAuthProvider,
   signInWithPopup,
 } from "firebase/auth";
@@ -34,21 +33,15 @@ const GoogleIcon = () => (
   </svg>
 );
 
-const LinkedInIcon = () => (
-    <svg className="h-4 w-4" viewBox="0 0 24 24">
-        <path fill="currentColor" d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-11 3H5v11h3V6m2 0h3v2h-3V6m4.5 0c1.93 0 3.5 1.57 3.5 3.5V17h-3v-5.5c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5V17h-3v-5.5C9.5 7.57 11.07 6 13 6h1.5z"/>
-    </svg>
-)
 
 export function SocialButtons() {
     const router = useRouter();
     const { toast } = useToast();
 
-    const handleSocialLogin = async (providerName: 'google' | 'github' | 'facebook') => {
+    const handleSocialLogin = async (providerName: 'google' | 'github') => {
         let provider;
         if (providerName === 'google') provider = new GoogleAuthProvider();
         if (providerName === 'github') provider = new GithubAuthProvider();
-        if (providerName === 'facebook') provider = new FacebookAuthProvider();
 
         if (!provider) return;
 
@@ -102,14 +95,6 @@ export function SocialButtons() {
         </Button>
         <Button variant="outline" type="button" onClick={() => handleSocialLogin('github')}>
             <span className="mr-2">GitHub</span> <Github />
-        </Button>
-      </div>
-       <div className="grid grid-cols-2 gap-2">
-        <Button variant="outline" type="button" onClick={() => handleSocialLogin('facebook')}>
-            <span className="mr-2">Facebook</span> <Facebook />
-        </Button>
-        <Button variant="outline" type="button" disabled>
-            <span className="mr-2">LinkedIn</span> <LinkedInIcon />
         </Button>
       </div>
     </>
