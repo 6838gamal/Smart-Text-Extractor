@@ -57,6 +57,9 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
 import { ImageCropper } from "./image-cropper";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
 
 type FileCardProps = {
   fileData: ProcessedFile;
@@ -83,8 +86,41 @@ const STATUS_INFO = {
   error: { icon: <AlertCircle className="w-4 h-4 text-destructive" />, text: "خطأ" },
 };
 
+const CsvViewer = ({ csvData }: { csvData: string }) => {
+  const rows = React.useMemo(() => {
+    return csvData.split('\n').map(row => row.split(','));
+  }, [csvData]);
+
+  if (!rows || rows.length === 0) {
+    return <p>لا توجد بيانات لعرضها في الجدول.</p>;
+  }
+
+  const header = rows[0];
+  const body = rows.slice(1);
+
+  return (
+    <ScrollArea className="h-48 w-full rounded-md border">
+      <Table className="w-full text-sm">
+        <TableHeader>
+          <TableRow>
+            {header.map((cell, i) => <TableHead key={i}>{cell}</TableHead>)}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {body.map((row, i) => (
+            <TableRow key={i}>
+              {row.map((cell, j) => <TableCell key={j}>{cell}</TableCell>)}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </ScrollArea>
+  );
+};
+
+
 export function FileCard({ fileData, onAction, onProcess, checkUsage, usageCount, usageLimit }: FileCardProps) {
-  const { file, status, text, error, type, previewUrl, id } = fileData;
+  const { file, status, text, error, type, previewUrl, id, isTable, csvData } = fileData;
   const [isSummaryOpen, setIsSummaryOpen] = React.useState(false);
   const [summary, setSummary] = React.useState("");
   const [isSummarizing, setIsSummarizing] = React.useState(false);
@@ -158,13 +194,22 @@ export function FileCard({ fileData, onAction, onProcess, checkUsage, usageCount
     onProcess(id, croppedDataUrl);
   };
   
-  const handleExport = (format: "txt" | "md") => {
+  const handleExport = (format: "txt" | "md" | "csv") => {
     if (!text) return;
-    const blob = new Blob([text], { type: format === 'txt' ? 'text/plain' : 'text/markdown;charset=utf-8' });
+
+    let blob;
+    let extension = format;
+    if (format === 'csv' && csvData) {
+        blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+    } else {
+        const content = text;
+        blob = new Blob([content], { type: format === 'txt' ? 'text/plain' : 'text/markdown;charset=utf-8' });
+    }
+
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${file.name.split('.')[0]}.${format}`;
+    a.download = `${file.name.split('.')[0]}.${extension}`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -198,17 +243,36 @@ export function FileCard({ fileData, onAction, onProcess, checkUsage, usageCount
           {status === "error" && <p className="text-sm text-destructive">{error}</p>}
           
           {status === "success" && text && (
-            <div className={`grid grid-cols-1 ${showPreview ? "md:grid-cols-2" : ""} gap-4`}>
-              {showPreview && (
-                <div className="relative aspect-video rounded-md overflow-hidden border">
-                  {type === 'image' && <Image src={previewUrl} alt={`Preview of ${file.name}`} layout="fill" objectFit="contain" />}
-                  {type === 'video' && <video src={previewUrl} controls className="w-full h-full" />}
-                  {type === 'audio' && <audio src={previewUrl} controls className="w-full" />}
+             <div className={`grid grid-cols-1 ${showPreview ? "md:grid-cols-2" : ""} gap-4`}>
+                {showPreview && (
+                    <div className="relative aspect-video rounded-md overflow-hidden border">
+                    {type === 'image' && <Image src={previewUrl} alt={`Preview of ${file.name}`} layout="fill" objectFit="contain" />}
+                    {type === 'video' && <video src={previewUrl} controls className="w-full h-full" />}
+                    {type === 'audio' && <audio src={previewUrl} controls className="w-full" />}
+                    </div>
+                )}
+                <div className={showPreview ? '' : 'col-span-full'}>
+                  {isTable && csvData ? (
+                    <Tabs defaultValue="text" className="w-full">
+                      <TabsList>
+                        <TabsTrigger value="text">نص</TabsTrigger>
+                        <TabsTrigger value="table">جدول</TabsTrigger>
+                      </TabsList>
+                      <TabsContent value="text">
+                        <ScrollArea className="h-48 w-full rounded-md border p-3 bg-muted/20">
+                          <p className="text-sm whitespace-pre-wrap">{text}</p>
+                        </ScrollArea>
+                      </TabsContent>
+                      <TabsContent value="table">
+                        <CsvViewer csvData={csvData} />
+                      </TabsContent>
+                    </Tabs>
+                  ) : (
+                    <ScrollArea className="h-48 w-full rounded-md border p-3 bg-muted/20">
+                      <p className="text-sm whitespace-pre-wrap">{text}</p>
+                    </ScrollArea>
+                  )}
                 </div>
-              )}
-              <ScrollArea className="h-48 w-full rounded-md border p-3 bg-muted/20">
-                <p className="text-sm whitespace-pre-wrap">{text}</p>
-              </ScrollArea>
             </div>
           )}
         </CardContent>
@@ -283,6 +347,7 @@ export function FileCard({ fileData, onAction, onProcess, checkUsage, usageCount
             <DropdownMenuContent dir="rtl">
               <DropdownMenuItem onClick={() => handleExport("txt")}>نص (.txt)</DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleExport("md")}>ماركداون (.md)</DropdownMenuItem>
+              {isTable && <DropdownMenuItem onClick={() => handleExport("csv")}>CSV (.csv)</DropdownMenuItem>}
               <DropdownMenuItem disabled={!canExportPdf} onSelect={(e) => e.preventDefault()} title={!canExportPdf ? "الترقية إلى Pro للتصدير بصيغة PDF" : ""}>
                 <span className={!canExportPdf ? 'opacity-50' : ''}>PDF (.pdf)</span>
               </DropdownMenuItem>

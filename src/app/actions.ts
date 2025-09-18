@@ -79,8 +79,8 @@ export async function getExtractedText(values: z.infer<typeof extractSchema>) {
   }
 
   try {
-    const { text } = await extractText({ fileDataUri: validatedFields.data.fileDataUri });
-    return { text };
+    const output = await extractText({ fileDataUri: validatedFields.data.fileDataUri });
+    return output;
   } catch (error) {
     console.error('Text Extraction Error:', error);
     return { error: 'فشل استخراج النص من الملف. قد يكون نوع الملف غير مدعوم من قبل النموذج.' };

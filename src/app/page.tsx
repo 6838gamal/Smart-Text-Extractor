@@ -59,6 +59,8 @@ export type ProcessedFile = {
   text?: string;
   error?: string;
   type: BasicFileType;
+  isTable?: boolean;
+  csvData?: string;
 };
 
 const PLAN_LIMITS: Record<PlanId, { usage: number; fileSizeMB: number; pdfPages: number }> = {
@@ -164,9 +166,12 @@ export default function Home() {
         await incrementUsage();
         
         let extractedText: string | undefined;
+        let isTable: boolean | undefined;
+        let csvData: string | undefined;
 
         if (processingType === 'text') {
             extractedText = await readTextFromFile(fileToProcess.file);
+            isTable = false;
         } else {
             const fileDataUri = dataUri || await toDataURL(fileToProcess.file);
             const result = await getExtractedText({ fileDataUri });
@@ -175,12 +180,14 @@ export default function Home() {
               throw new Error(result.error);
             }
             extractedText = result.text;
+            isTable = result.isTable;
+            csvData = result.csvData;
         }
 
         setFiles((prev) =>
           prev.map((f) =>
             f.id === fileToProcess.id
-              ? { ...f, status: "success", text: extractedText }
+              ? { ...f, status: "success", text: extractedText, isTable, csvData }
               : f
           )
         );

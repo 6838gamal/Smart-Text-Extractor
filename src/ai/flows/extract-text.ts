@@ -22,7 +22,9 @@ const ExtractTextInputSchema = z.object({
 export type ExtractTextInput = z.infer<typeof ExtractTextInputSchema>;
 
 const ExtractTextOutputSchema = z.object({
-  text: z.string().describe('The extracted text from the file.'),
+  isTable: z.boolean().describe('Whether the extracted content is a table.'),
+  text: z.string().describe('The extracted text from the file. If it is a table, this should be the raw text content.'),
+  csvData: z.string().optional().describe('If the content is a table, this should be the CSV representation of the table data.'),
 });
 export type ExtractTextOutput = z.infer<typeof ExtractTextOutputSchema>;
 
@@ -36,13 +38,15 @@ const prompt = ai.definePrompt({
   name: 'extractTextPrompt',
   input: { schema: ExtractTextInputSchema },
   output: { schema: ExtractTextOutputSchema },
-  prompt: `You are a powerful and versatile text extraction engine. Your primary task is to extract any and all text from the provided file with the highest possible accuracy, regardless of its format (image, audio, video).
+  prompt: `You are a powerful and versatile text extraction engine. Your primary task is to extract any and all text from the provided file with the highest possible accuracy.
 
-If the file is an image, perform Optical Character Recognition (OCR). Pay close attention to various fonts, scripts, and handwriting styles, including but not limited to cursive scripts like Arabic Ruq'ah. You should be able to read handwritten text even if it is not perfectly straight, just as a human would.
+Analyze the content of the file. If the content appears to be a table or a spreadsheet, set the 'isTable' flag to true. If 'isTable' is true, you MUST provide a CSV (Comma-Separated Values) representation of the table in the 'csvData' field. Each row of the table should be a new line in the CSV, and columns should be separated by commas. Make sure to handle commas within cells by enclosing the cell content in double quotes.
 
-If the file is audio or video, transcribe the speech. You are an expert in linguistics and can understand and transcribe various local dialects and accents accurately.
+If the file is an image, perform Optical Character Recognition (OCR). Pay close attention to various fonts, scripts, and handwriting styles.
 
-Return only the extracted text, ensuring that the original language, dialect, and script are preserved.
+If the file is audio or video, transcribe the speech.
+
+Always return the full extracted text, regardless of format, in the 'text' field.
 
 File: {{media url=fileDataUri}}`,
 });
