@@ -30,23 +30,27 @@ export type FileStatus = "queued" | "processing" | "success" | "error";
 type BasicFileType = 'image' | 'pdf' | 'audio' | 'video' | 'text' | 'unsupported';
 
 const getFileType = (file: File): { displayType: BasicFileType, processingType: 'image' | 'audio' | 'video' | 'text' | 'unsupported' } => {
-  const type = file.type;
-  if (type.startsWith('image/')) {
-    return { displayType: 'image', processingType: 'image' };
-  }
-  if (type === 'application/pdf') {
-    return { displayType: 'pdf', processingType: 'image' }; // Process PDFs as images
-  }
-  if (type.startsWith('audio/')) {
-    return { displayType: 'audio', processingType: 'audio' };
-  }
-  if (type.startsWith('video/')) {
-    return { displayType: 'video', processingType: 'video' };
-  }
-  if (type.startsWith('text/') || /\.(txt|md|json|csv|xml|js|ts|py|java|c|cpp|cs|go|rb|php|swift|html|css)$/i.test(file.name)) {
-      return { displayType: 'text', processingType: 'text' };
-  }
-  return { displayType: 'unsupported', processingType: 'image' }; // Fallback for unknown types
+    const type = file.type;
+    const extension = file.name.split('.').pop()?.toLowerCase();
+
+    // Check by MIME type first
+    if (type.startsWith('image/')) return { displayType: 'image', processingType: 'image' };
+    if (type === 'application/pdf') return { displayType: 'pdf', processingType: 'image' };
+    if (type.startsWith('audio/')) return { displayType: 'audio', processingType: 'audio' };
+    if (type.startsWith('video/')) return { displayType: 'video', processingType: 'video' };
+    if (type.startsWith('text/')) return { displayType: 'text', processingType: 'text' };
+    
+    // If MIME type is empty or generic, fallback to extension
+    if (extension) {
+        if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'].includes(extension)) return { displayType: 'image', processingType: 'image' };
+        if (extension === 'pdf') return { displayType: 'pdf', processingType: 'image' };
+        if (['mp3', 'wav', 'ogg', 'm4a', 'flac'].includes(extension)) return { displayType: 'audio', processingType: 'audio' };
+        if (['mp4', 'webm', 'mov', 'avi', 'mkv'].includes(extension)) return { displayType: 'video', processingType: 'video' };
+        if (['txt', 'md', 'json', 'csv', 'xml', 'js', 'ts', 'py', 'java', 'c', 'cpp', 'cs', 'go', 'rb', 'php', 'swift', 'html', 'css'].includes(extension)) return { displayType: 'text', processingType: 'text' };
+    }
+
+    // If still no match, classify as unsupported
+    return { displayType: 'unsupported', processingType: 'unsupported' };
 };
 
 
@@ -64,7 +68,6 @@ const PLAN_LIMITS: Record<PlanId, { usage: number; fileSizeMB: number; pdfPages:
     free: { usage: 3, fileSizeMB: 5, pdfPages: 1 },
     starter: { usage: 200, fileSizeMB: 50, pdfPages: 20 },
     pro: { usage: 3000, fileSizeMB: 100, pdfPages: 100 },
-    team: { usage: Infinity, fileSizeMB: 200, pdfPages: 500 },
     business: { usage: Infinity, fileSizeMB: 500, pdfPages: 1000 },
     enterprise: { usage: Infinity, fileSizeMB: Infinity, pdfPages: Infinity },
     custom: { usage: Infinity, fileSizeMB: Infinity, pdfPages: Infinity },
@@ -184,7 +187,7 @@ export default function Home() {
         return {
           ...baseProcessedFile,
           status: "error",
-          error: file.type ? `نوع الملف "${file.type}" غير مدعوم حاليًا.` : "نوع الملف غير معروف أو غير مدعوم.",
+          error: `نوع الملف (${file.name.split('.').pop()}) غير مدعوم حاليًا.`,
         };
       }
 
